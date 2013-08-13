@@ -1,0 +1,40 @@
+<?php
+
+/**
+* Define your new library
+*/
+function hello_library(){
+
+	$libraries['my-first-library']	 = array(
+		'title' => 'My First Javascript LIbrary',
+		'website' => 'http://himerus.com',
+		'version' => '1.0.1',
+		'js' => array(
+			drupal_get_path('module','hello').'/js-file-one.js' => array(),
+			drupal_get_path('module','hello').'/js-file-two.js' => array(),
+		),
+
+		'css' => array(
+			drupal_get_path('module', 'hello').'/css-file-one.css' => array(
+				'type' => 'file',
+				'media' => 'all',
+			),
+		),
+
+		'dependencies' => array(
+			array('system', 'ui'), //Require the core ui library
+			array('system', 'ui.autocomplete'),
+		),
+	);
+
+	return $libraries;
+}
+
+/* Hooke js alter */
+function hello_js_alter(&$Javascript){
+	$search = drupal_get_path('module', 'hello').'/some-file.js';
+	if(array_key_exists($search, $Javascript)){
+		//Reset the weight for this item, making it appear highter in the source
+		$Javascript[$search]['weight'] = -100;
+	}
+}

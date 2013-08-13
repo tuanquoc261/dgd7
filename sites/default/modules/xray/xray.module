@@ -9,108 +9,291 @@
  * Implements hook_form_alter() to show each form's identifier.
  */
 function xray_form_alter(&$form, &$form_state, $form_id) {
-  $form['xray_display_form_id'] = array(
-      '#type' => 'item',
-      '#title' => t('Form ID'),
-      '#markup' => $form_id,
+  if ((variable_get('xray_display_form_id', TRUE)) && user_access('view xray messages')) {
+    $form['xray_display_form_id'] = array(
+      '#type'           => 'item',
+      '#title'          => t('Form ID'),
+      '#markup'         => $form_id,
       '#theme_wrappers' => array('container__xray__form'),
-      '#attributes' => array('class' => array('xray')),
-      '#weight' => -100,
-  );
+      '#attributes'     => array('class' => array('xray')),
+      '#weight'         => -100,
+    );
+  }
 }
 
 /**
  * Implement hook_help().
  */
 function xray_help($path, $arg) {
-  $output = '';
-  $output .= xray_show_page_callback();
-  switch($path){
+  $help = '';
+  $help .= xray_show_page_callback();
+  switch ($path) {
+    case 'admin/content':
+      $variables = array('data' => xray_content_summary());
+      return $help . theme('xray_content_summary', $variables);
     case 'admin/structure':
-      $output = format_plural(
-         2,
-        'The site has one content type.',
-        'The site has @count content types.'
-      );
       $variables = array('data' => xray_structure_summary());
-      $output .= theme('xray_structure_summary', $variables);
-      break;
+      return $help . theme('xray_structure_summary', $variables);
     case 'admin/appearance':
-      $output .= _xray_help_admin_appearance();
-      break;
-      
+      $variables = array('data' => xray_appearance_summary());
+      return $help . theme('xray_appearance_summary', $variables);
+    case 'admin/people':
+      $variables = array('data' => xray_people_summary());
+      return $help . theme('xray_people_summary', $variables);
+    case 'admin/modules':
+      $variables = array('data' => xray_modules_summary());
+      return $help . theme('xray_modules_summary', $variables);
+    case 'admin/help/#xray':
+      // This is show as a regular page; do not include the 
+      // xray_show_page_callback $help or it is show twice.
+      return _xray_help_page();
+    default:
+      return $help;
+  }
+}
+
+/**
+ * Summary data for People section (admin/people).
+ */
+function xray_people_summary() {
+  $data               = array();
+  // Fetch the number of enabled and disabled (blocked) users.
+  $data ['users']     = db_query("select status, count(*) as num from {users} where uid <> 0 group by status")->fetchAllKeyed();
+
+  // @TODO roles, permissions
+  return $data;
+}
+
+/**
+ * Summary data for Theme section (admin/appearance)
+ * @return type
+ */
+function xray_appearance_summary() {
+  $data = array();
+  // Fetch the number of enabled and disabled (theme).
+  $data['themes'] = db_query("select status, count(*) as num from {system} where type='theme' group by status")->fetchAllKeyed();
+  
+  return $data;
+}
+
+function theme_xray_appearance_summary($variables) {
+  $output = '';
+  // Fetch attributes from array .
+  $attr = drupal_attributes($variables['attributes']);
+  
+  $output .= "<p $attr>";
+  
+  $output .= format_plural($data['themes'][1], 'The site has <strong> one active theme </strong>', 'The site has <strong> @count active theme </strong>');
+  if (isset($data['users'][0])) {
+    $output .= format_plural($data['themes'][0], ' and one disable theme.', 'and @count disable theme.');
+  }
+  else {
+    $output .= ' ' . t('and no disable themes.');
+  }
+  
+  $output .= "</p>";
+}
+
+
+/**
+ * Summary data for People section (admin/people).
+ */
+function xray_content_summary() {
+  $data               = array();
+  // Fetch the number of enabled and disabled (blocked) users.
+  $data ['content']     = db_query("select status, count(*) as num from {node} where nid <> 0 group by status")->fetchAllKeyed();
+
+  // @TODO roles, permissions
+  return $data;
+}
+
+/**
+ * Returns HTML text summary of People section (admin/people) data.
+ * 
+ * @param $attributes
+ *  (optional) An associative array of HTML tag attributes tag attributes, suitable for flattening by drupal_attributes().
+ * @param $variables
+ * An associative array containing;
+ *  - data: result of xray_people_summary()
+ */
+function theme_xray_people_summary($variables) {
+  $data = $variables['data'];
+  // Collapse attributes for paragraph tag to a string.
+  $attr = drupal_attributes($variables['attributes']);
+
+  $output = '';
+  $output .= "<p $attr>";
+  // No isset check; if you have no active user, you have a bigger problem than an undefined index.
+  $output .= format_plural($data['users'][1], 'The site has <strong> one active user </strong>', 'The site has <strong> @count active users </strong>');
+  if (isset($data['users'][0])) {
+    $output .= format_plural($data['users'][0], ' and one blocked user.', 'and @count blocked user.');
+  }
+  else {
+    $output .= ' ' . t('and no blocked users.');
+  }
+  return $output;
+}
+/**
+ * Render HTML.
+ */
+function theme_xray_content_summary($variables) {
+  $data = $variables['data'];
+  // Collapse attributes for paragraph tag to a string
+  $attr = drupal_attributes($variables['attributes']);
+  
+  $output = '';
+  $output .= "<p $attr>";
+  // No isset check; if you have no active user, you have a bigger problem than an undefined index.
+  if(isset($data['content'][1])) {
+    $output .= format_plural($data['content'][1], 'The site has <strong> one enable node </strong>', 'The site has <strong> @count enabled node</strong>');
+  }
+  else {
+    $output .= "The site has no enable node. ";
+  }
+  
+  if (isset($data['users'][0])) {
+    $output .= format_plural($data['users'][0], ' and one disable node.', 'and @count disable node.');
+  }
+  else {
+    $output .= ' ' . t('and no disable node.');
   }
   return $output;
 }
 
-function _xray_help_admin_appearance(){
+/**
+ * Summary data for Modules section (admin/modules)
+ */
+function xray_modules_summary() {
+  $data                      = array();
+  $result                    = db_query("select status, count(*) from {system} where type='module' group by status")
+    ->fetchAllKeyed();
+  $data['modules_by_status'] = $result;
+  $data['attributes']        = array('class' => 'xray_modules_summary');
+  return $data;
+}
+
+/**
+ * Return HTML, use xray_modules_summary().
+ */
+function theme_xray_modules_summary($variables) {
+  $data = $variables['data'];
+  // Collapse attributes for paragraph tag to a string
+  $attr = drupal_attributes($variables['attributes']);
+
   $output = '';
-  $data = xray_stats_enabled_themes();
+  $output .= "<p $attr>";
+  $output .= t('This site has <strong>@enabled_count enabled modules</strong> (and an additional @disabled_count modules present
+    but not enabled).', array(
+    '@enabled_count'  => $data['modules_by_status'][1],
+    '@disabled_count' => $data['modules_by_status'][0],
+  ));
+  $output .= '</p>';
+  return $output;
+}
+
+/**
+ * 
+ * Help page for xray module
+ */
+function _xray_help_page() {
+  $output = '';
+  $output .= '<h3>' . t('About') . '</h3>';
+  $output .= '<p>' . t('X-ray module provides a look at the skeletal structure of your site
+    from several perpectives intended to benefit developers and site builders.  ') . '</p>';
+  $output .= '<p>' . t('It adds an accounting summary of rlevant object to the help above
+    the main administrative sections (blocks, content types, menus on <a href="@structure">Structure</a>; theme
+    on <a href="@appearance">Appearance</a>; etc).', array('@structure'  => url('admin/strucutre'),
+      '@appearance' => url('admin/appearance'))) . '</p>';
+  $output .= '<h3>' . t('Uses') . '</h3>';
+  $output .= '<dl>';
+  $output .= '<dt>' . t('Page callback and arguments') . '</dt>';
+  $output .= '<dd>' . t('X-ray exposes the function that is primary responsible for
+    providing a given page in a help message at the top of that page. It precedes the name of
+    the function with the arguments handed it, if any. It also provides the name of the file
+    where this function lives if available (the file is only available if the callback does not
+    live in a .module). Note that just because arguments are handed in to a function does not
+    mean they are used.') . '</dd>';
+  $output .= '</dl>';
+  return $output;
+}
+
+function _xray_help_admin_appearance() {
+  $output = '';
+  $data   = xray_stats_enabled_themes();
   $output .= format_plural(
-    $data['num_hidden'],
-    'There is one hidden theme.',
-    'There are @count hidden themes.'
-    );
+    $data['num_hidden'], 'There is one hidden theme.', 'There are @count hidden themes.'
+  );
   return theme('xray_help', array('text' => $output));
 }
 
 /**
  * Fetch information from theme().
  */
-function xray_stats_enabled_themes(){
+function xray_stats_enabled_themes() {
   $themes = list_themes();
-  
+
   // Initialize validables for the data you will colect.
   $num_hidden = 0;
-  
+
   // Interate through each theme, gathering data that you care about.
-  foreach ($themes as $themename => $theme){
+  foreach ($themes as $themename => $theme) {
     // Count each hidden name
-    if(isset($theme->info['hidden']) && $theme->info['hidden']){
+    if (isset($theme->info['hidden']) && $theme->info['hidden']) {
       $num_hidden++;
     }
   }
-  
+
   return compact('num_hidden');
 }
 
 /**
  * Implemnent hook_menu().
  */
-function xray_menu(){
+function xray_menu() {
   $items['admin/reports/xray'] = array(
-    'title' => 'X-ray technical site overview',
-    'description' => 'See the internal structure of the site',
-    'page callback' => 'xray_overview_page',
+    'title'            => 'X-ray technical site overview',
+    'description'      => 'See the internal structure of the site',
+    'page callback'    => 'xray_overview_page',
     'access arguments' => array('access site reports'),
-    'type' => MENU_NORMAL_ITEM,
+    'type'             => MENU_NORMAL_ITEM,
   );
-  
+
   $items['admin/reports/xray/overview'] = array(
-    'title' => 'Overview',
+    'title'       => 'Overview',
     'description' => "Technical overview of the sites's internals.",
-    'type' => MENU_DEFAULT_LOCAL_TASK,
-    'weight' => -10,
+    'type'        => MENU_DEFAULT_LOCAL_TASK,
+    'weight'      => -10,
   );
-  
-  
-  
+
+
+
   $items['admin/reports/xray/permission'] = array(
-    'title' => 'Permissions',
-    'page callback' => 'xray_permission_names_page',
-    'weight' => 10,
+    'title'            => 'Permissions',
+    'page callback'    => 'xray_permission_names_page',
+    'weight'           => 10,
     'access arguments' => array('access site reports'),
-    'type' => MENU_LOCAL_TASK,
+    'type'             => MENU_LOCAL_TASK,
   );
-  
+
   $items['admin/reports/xray/hooks'] = array(
-    'title' => 'Hooks',
-    'page callback' => 'xray_hook_implements_page',
-    'type' => MENU_LOCAL_TASK,
-    'weight' => 20,
+    'title'            => 'Hooks',
+    'page callback'    => 'xray_hook_implements_page',
+    'type'             => MENU_LOCAL_TASK,
+    'weight'           => 20,
     'access arguments' => array('access site reports'),
   );
-  
+
+  // Administrator page.
+  $items['admin/config/development/xray'] = array(
+    'title'            => 'Xray - configuration',
+    'description'      => 'Configure which elements of internal site structure will be show!',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('xray_admin_settings'),
+    'file'             => 'xray.admin.inc',
+    'access arguments' => array('administer xray'),
+    'weight'           => 0,
+  );
+
   return $items;
 }
 
@@ -119,29 +302,29 @@ function xray_menu(){
  */
 function xray_hook_implements_page() {
   $build = array();
-  
+
   $header = array(
-    array('data' => t('Hook'), 'field' => 'h.hook'),
-    array('data' => t('Implementing modules'), 'field' => 'h.modules_count'),
-    array('data' => t('First second'), 'field' => 'h.first'),
-    array('data' => t('Last recored'), 'field' => 'h.last'),
+    array('data'  => t('Hook'), 'field' => 'h.hook'),
+    array('data'  => t('Implementing modules'), 'field' => 'h.modules_count'),
+    array('data'  => t('First second'), 'field' => 'h.first'),
+    array('data'  => t('Last recored'), 'field' => 'h.last'),
   );
-  
+
   $rows = array();
-  
-  $query = db_select("xray_hook",'h')->extend('TableSort');
-  $query->fields('h', array('hook','modules','modules_count','first', 'last'));
+
+  $query  = db_select("xray_hook", 'h')->extend('TableSort');
+  $query->fields('h', array('hook', 'modules', 'modules_count', 'first', 'last'));
   $result = $query
-            ->orderByHeader($header)
-            ->execute();
-  
+    ->orderByHeader($header)
+    ->execute();
+
   foreach ($result as $invocation) {
     // Prepare the implemeting modules text.
     if (empty($invocation->modules)) {
       $modules_text = t('<em>Node</em>');
     }
     else {
-      $modules = array_keys(unserialize($invocation->modules));
+      $modules      = array_keys(unserialize($invocation->modules));
       $modules_text = implode(", ", $modules);
     }
     $rows[] = array(
@@ -150,15 +333,15 @@ function xray_hook_implements_page() {
       format_date($invocation->first, 'short'),
       format_date($invocation->last, 'short'),
     );
-    
+
     $build['hook_table'] = array(
-      '#theme' => 'table__xray__hooks',
-      '#header' => $header,
-      '#rows' => $rows,
+      '#theme'      => 'table__xray__hooks',
+      '#header'     => $header,
+      '#rows'       => $rows,
       '#attrbitues' => array('id' => 'xray-hook-implementations'),
-      '#empty' => t('No hooks recorded yet (this is unlikely'),
+      '#empty'      => t('No hooks recorded yet (this is unlikely'),
     );
-    
+
     //Return the renderable array that you've built for the page
     return $build;
   }
@@ -167,21 +350,21 @@ function xray_hook_implements_page() {
 /**
  * Page call back xray/permission
  */
-function xray_permission_names_page(){
-  $build = array();
+function xray_permission_names_page() {
+  $build  = array();
   // Gather data, an array of human-reachable names keyed by machines names.
-  $names = xray_permission_names();
+  $names  = xray_permission_names();
   // format data as table
   $header = array(t('Permission title'), t('Permissons machine name'));
-  $rows = array();
-  foreach($names as $machine_name => $title){
+  $rows   = array();
+  foreach ($names as $machine_name => $title) {
     $rows[] = array($title, $machine_name);
   }
-  
+
   $build = array(
-    '#theme' => 'table__xray__permission_names',
-    '#header' => $header,
-    '#rows' => $rows,
+    '#theme'     => 'table__xray__permission_names',
+    '#header'    => $header,
+    '#rows'      => $rows,
     '#attibutes' => array('id' => 'xray-permissions-names'),
   );
   return $build;
@@ -192,11 +375,11 @@ function xray_permission_names_page(){
 /**
  * Get list permission names.
  */
-function xray_permission_names(){
-  $names = array();
+function xray_permission_names() {
+  $names       = array();
   $permissions = module_invoke_all('permission');
   // Extrack just permission title from permission array.
-  foreach($permissions as $machine_name => $permission){
+  foreach ($permissions as $machine_name => $permission) {
     $names[$machine_name] = $permission['title'];
   }
   // Put permssion name by alphabeta order by title.
@@ -222,21 +405,45 @@ function xray_permission_names(){
 /**
  * Implements hook_theme().
  */
-function xray_theme(){
+function xray_theme() {
   return array(
-    'xray_permission_names' =>array(
+    'xray_permission_names'   => array(
       'render element' => 'names',
     ),
     'xray_show_page_callback' => array(
       'variables' => array(
-        'page_callback' => NULL,
-        'included_file' => NULL,
+        'page_callback'  => NULL,
+        'included_file'  => NULL,
         'page_arguments' => NULL,
       ),
     ),
-    'xray_structure_summary' => array(
+    'xray_appearance_summary' => array(
       'variables' => array(
-        'data' => array(),
+        'data'       => array(),
+        'attributes' => array('class' => 'xray-help'),
+      ),
+    ),
+    'xray_content_summary'    => array(
+      'variables' => array(
+        'data'       => array(),
+        'attributes' => array('class' => 'xray-help'),
+      ),
+    ),
+    'xray_people_summary'     => array(
+      'variables' => array(
+        'data'       => array(),
+        'attributes' => array('class' => 'xray-help'),
+      ),
+    ),
+    'xray_modules_summary'    => array(
+      'variables' => array(
+        'data'       => array(),
+        'attributes' => array('class' => 'xray-help'),
+      ),
+    ),
+    'xray_structure_summary'  => array(
+      'variables' => array(
+        'data'       => array(),
         'attributes' => array('class' => 'xray-help'),
       ),
     ),
@@ -246,26 +453,26 @@ function xray_theme(){
 /**
  * Callback menu.
  */
-function xray_overview_page(){
-  $build = array();
+function xray_overview_page() {
+  $build          = array();
   $build['intro'] = array(
     '#markup' => '<p>' . t("Technical overview of the site's internals. These summaries also apear / can be configured to appear on main administration section") . '</p>',
   );
-  
+
   $build['structure_title'] = array(
-    '#theme' => 'html_tag',
-    '#tag' => 'h3',
+    '#theme'      => 'html_tag',
+    '#tag'        => 'h3',
     '#attributes' => array('class' => 'xray-section-title'),
-    '#value' => t('Structure summary'),
+    '#value'      => t('Structure summary'),
   );
-  
-  $data = xray_structure_summary();
+
+  $data                       = xray_structure_summary();
   $build['structure_summary'] = array(
-    '#theme' => 'xray_structure_summary',
-    '#data' => $data,
+    '#theme'      => 'xray_structure_summary',
+    '#data'       => $data,
     '#attributes' => array('class' => 'xray-report'),
   );
-  
+
   return $build;
 }
 
@@ -274,12 +481,12 @@ function xray_overview_page(){
 /**
  * Provice the page callback function ( and other router item information ) .
  */
-function xray_show_page_callback(){
+function xray_show_page_callback() {
   // Do not hand in the path; menu_get_item() finds dynamic paths on its own
   // but fails if handed help's $path vairable which is node/% for node /1
   $router_item = menu_get_item();
   // menu_get_item return null when called by drush command
-  if($router_item){
+  if ($router_item) {
     return theme('xray_show_page_callback', $router_item);
   }
   return '';
@@ -288,29 +495,24 @@ function xray_show_page_callback(){
 /**
  * Theme the page callback and optionally other elements of a router item.
  */
-function theme_xray_show_page_callback($variables){
+function theme_xray_show_page_callback($variables) {
   extract($variables, EXTR_SKIP);
   $output = '';
   $output .= '<p class="xray-help xray-page-callback">';
-  $output .= t('This page is brought to you by ');
-  if($page_arguments){
-    foreach($page_arguments as $key => $value) {
-      if(is_object($value)) {
-        $value = $value->name;
-      }
+  $output .= t('This page is brought to you by');
+  if ($page_arguments) {
+    foreach ($page_arguments as $key => $value) {
+//      if (is_object($value)) {
+//        $value = $value->name;
+//      }
       $page_arguments[$key] = drupal_placeholder($value);
     }
-    $output .= format_plural(count($page_arguments),
-        'the argument !arg handed to ',
-        'the arguments !arg handed to ',
-        array('!arg' => xray_oxford_comma_list($page_arguments))
-      );
+    $output .= format_plural(count($page_arguments), 'the argument !arg handed to ', 'the arguments !arg handed to ', array('!arg' => xray_oxford_comma_list($page_arguments))
+    );
   }
-  $output .= t('the function %func',
-                array('%func' => $page_callback.'()'));
-  if($include_file) {
-    $output .= t(' and the included file %file',
-                  array('%file' => $include_file));
+  $output .= t('the function %func', array('%func' => $page_callback . '()'));
+  if ($include_file) {
+    $output .= t('and the included file %file', array('%file' => $include_file));
   }
   $output .= '.</p>';
   return $output;
@@ -331,20 +533,19 @@ function xray_stats_blocks_enabled_by_theme() {
  * Summary data for structure section (admin/structure)
  */
 function xray_structure_summary() {
-  $data = array();
+  $data                            = array();
   $data['blocks_enabled_by_theme'] = xray_stats_blocks_enabled_by_theme();
-  $data['block_total'] = xray_stats_block_total();
-  $data['content_type_total'] = xray_stats_content_type_total();
+  $data['block_total']             = xray_stats_block_total();
+  $data['content_type_total']      = xray_stats_content_type_total();
   // @TODO menu, taxonomy
   return $data;
 }
 
-function xray_stats_content_type_total(){
+function xray_stats_content_type_total() {
   return db_query("select count(*) as num from {node_type} where disabled = :status", array(':status' => '0'))->fetchField();
 }
 
-function xray_stats_block_total()
-{
+function xray_stats_block_total() {
   return db_query("select count(*) as num from {block} b inner join {system} s on b.theme = s.name where s.status = 1 and b.status = 1 group by b.theme")->fetchField();
 }
 
@@ -362,33 +563,31 @@ function xray_stats_block_total()
 function theme_xray_structure_summary($variables) {
   extract($variables['data'], EXTR_SKIP);
   $attributes = drupal_attributes($variables['attributes']);
-  
+
   $output = '';
   $output .= "<a $attributes>";
-  $output .= t("this site has @total_block avaiable. Of these,",
-                array('@total_block' => $block_total));
+  $output .= t("this site has @total_block avaiable. Of these,", array('@total_block' => $block_total));
   $output .= ' ';
-  $list = array();
-  foreach($blocks_enabled_by_theme as $theme => $num) {
+  $list   = array();
+  foreach ($blocks_enabled_by_theme as $theme => $num) {
     $item = '';
     $item .= format_plural($num, '1 is enable', '@count as enabled');
     $item .= ' ' . t('on %theme', array('%theme' => $theme));
-    if($theme == variable_get('default_theme', 'bartik')) {
+    if ($theme == variable_get('default_theme', 'bartik')) {
       $item .= t(', the default theme');
     }
-    elseif($theme == variable_get('admin_theme', 'seven')) {
+    elseif ($theme == variable_get('admin_theme', 'seven')) {
       $item .= t(', the admin theme');
     }
     $list[] = $item;
   }
-  
+
   $output .= xray_oxford_comma_list($list, array('comma' => '; '));
   $output .= '.  ';
   $output .= format_plural($content_type_total, 'The site has one content type', 'The site have @count content type');
-  
+
   return $output;
 }
-
 
 /**
  * Implements hook_module_implements_alter().
@@ -398,33 +597,33 @@ function xray_module_implements_alter(&$implementations, $hook) {
   // xray_hook table is created, check if the table exits and bail on this
   // page loads after a cache claear, statically cache this check.
   static $table = NULL;
-  if($table === FALSE || !($table = db_table_exists('xray_hook'))) {
-    return ; 
+  if ($table === FALSE || !($table = db_table_exists('xray_hook'))) {
+    return;
   }
-  
-  $is_existing = (bool) $count = db_query("select count from {xray_hook} where hook = :hook", array(":hook" => $hook))->fetchField();
+
+  $is_existing = (bool) $count       = db_query("select count from {xray_hook} where hook = :hook", array(":hook" => $hook))->fetchField();
   // Increate the count of times this invocation has been checked by one.
   // $count++ does not work if $count is False
-  if($is_existing) {
-    $count ++;
+  if ($is_existing) {
+    $count++;
   }
   else {
     $count = 1;
   }
-  
+
   // you don't want first and last timestamp potentially varying by a second
   // in cases where they should be the same.
   $timestamp = time();
-  
+
   $fields = array(
-    'last' => (int)$timestamp,
-    'count' => (int)$count,
-    'modules' => serialize($implementations),
-    'modules_count' => (int)count($implementations),
+    'last'          => (int) $timestamp,
+    'count'         => (int) $count,
+    'modules'       => serialize($implementations),
+    'modules_count' => (int) count($implementations),
   );
-  
-  if($is_existing) {
-    
+
+  if ($is_existing) {
+
     // Update the hook.
     db_update('xray_hook')
       ->fields($fields)
@@ -433,10 +632,44 @@ function xray_module_implements_alter(&$implementations, $hook) {
   }
   else {
     // The hook has not been recored yet, insert it into the database.
-    $fields['hook'] = (string)$hook;
+    $fields['hook']  = (string) $hook;
     $fields['first'] = (int) $timestamp;
     db_insert('xray_hook')
       ->fields($fields)
       ->execute();
+  }
+}
+
+/**
+ * Implement the hook_permission().
+ */
+function xray_permission() {
+  return array(
+    'view_xray_messages' => array(
+      'title'       => t('View X-ray messages'),
+      'description' => t('Allows users to see X-ray output.'),
+    ),
+    'administer xray'    => array(
+      'title'       => t('Administer X-ray'),
+      'description' => t('Allows administrators to configure which X-ray messages are shown.')
+    ),
+  );
+}
+
+/**
+ * Process variables for show page callback theme function.
+ */
+function template_preprocess_xray_show_page_callback(&$variables) {
+  if ($variables['page_arguments']) {
+    foreach ($variables['page_arguments'] as $key => $value) {
+      if (is_array($value)) {
+        $value = t('array') . ' ' . $key;
+      }
+      elseif (is_object($value)) {
+        $value = t('object') . ' ' . $key;
+      }
+
+      $variables['page_arguments'][$key] = $value;
+    }
   }
 }

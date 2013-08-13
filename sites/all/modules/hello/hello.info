@@ -1,0 +1,11 @@
+name = My hello module
+description = "Provides a dropdown menu to most administrative tasks and other common destinations (to users with the proper permissions)."
+package = MY
+core = 7.x
+
+; Information added by drupal.org packaging script on 2013-01-31
+version = "7.x-3.0-rc4"
+core = "7.x"
+project = "MY"
+datestamp = "1359651687"
+

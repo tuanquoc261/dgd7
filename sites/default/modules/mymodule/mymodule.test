@@ -1,0 +1,109 @@
+<?php
+
+/**
+ * @file
+ * This file contains tests of the functionality of mymodule,
+ * a test module designed to demo Simpletest.
+ */
+
+/**
+ * This class corresponds to a family of tests (called a test case).
+ * Complex modules will have several of these. Inside the same
+ * test case, all tests will have the same setup.
+ */
+//class MyModuleTestCase extends DrupalWebTestCase {
+// 
+///**
+//   * Info for this test case.
+//   */
+//  public static function getInfo() {
+//    return array(
+//      'name' => t('mymodule functionality'),
+//      'description' => t('Test the functionality of mymodule'),
+//      'group' => 'mymodule',
+//    );
+//  }
+// 
+//
+///*
+//   * Common setup for all tests within a test case.
+//   */
+//  public function setUp() {
+//    // set up a new site with default core modules, mymodule, and
+//    // dependencies.
+//    parent::setUp('mymodule');
+//    // create a new user with some permissions you need; then log in.
+//    $admin = $this->drupalCreateUser(array('administer blocks', 
+//      'create blog content', 'administer nodes'));
+//    $this->drupalLogin($admin);
+//   
+//// go the block management page and set the region of your block
+//    // to sidebar_first, making sure it will be visible to Simpletest when
+//    // it is run. Because this involves filling in a form, drupalPost()
+//    // is used. See the section Simpletests and forms in Chapter 19 of
+//    // the Definite guide to Drupal 7 (dgd7.org)
+//    $edit = array(
+//      'blocks[mymodule_0][region]' => 'sidebar_first',
+//    );
+//    $this->drupalPost('admin/structure/block', $edit, t('Save blocks'));
+//  }
+// 
+//
+///*
+//   * Test -- recognizable as such because it starts with 'test'. For every   
+//   * test, Simpletest will create a completely new Drupal installation, run 
+//   * the common setUp() function, and go through this code.
+//   */
+//  public function testMainTest() {
+//    // note that at this point, the setUp() function has already executed.
+//    // create 25 users, and for each user create a blog post.
+//    for ($i = 0; $i < 25; $i++) {
+//      $this->assertNoText(t('Over 25 active users!'), t('Make sure the 
+//        block is not yet visible, because there\'s not enough content.'));
+//     
+//// each user has the permission to create a blog post.
+//      $user = $this->drupalCreateUser(array('create blog content'));
+//     
+//// note that we are still logged in as the main (admin) user (see
+//      // setUp(), above). We'll visit the blog creation page and set a random
+//      // title, and make sure the author name is set to the name of the user
+//      // we just created, then click save.
+//      $edit = array(
+//        'title' => $this->randomName(32), 
+//        'name' => $user->name      
+//      );
+//      $this->drupalPost('node/add/blog', $edit, t('Save'));
+//    }
+//   
+//
+//$this->assertText(t('Over 25 active users !'), t('Make sure the block
+//      is now visible, because we just created 25 users and a blog post for
+//      each.'));
+//  }
+//}
+
+class MyModuleTestCase extends DrupalUnitTestCase {
+
+  public static function getInfo() {
+    return array(
+      'name'        => 'Module Tests',
+      'description' => 'Unit Tests for this module',
+      'group'       => 'My Module',
+    );
+  }
+
+  public function setUp() {
+    $this->setup = true;
+  }
+  
+  public function tearDown() {
+  }
+  
+  public function testDbMerge(){
+    db_merge('abc')
+    ->key(array('uid' => '0', 'nid' => 0), array('uid' => '0', 'nid' => 1))
+    ->fields(array('uid' => '0', 'nid' => 0), array('uid' => '0', 'nid' => 1))
+    ->execute();
+  }
+
+}

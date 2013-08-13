@@ -62,5 +62,3 @@ function xray_schema() {
   );
   return $schema;
 }
-
-?>

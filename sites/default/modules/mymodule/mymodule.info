@@ -1,0 +1,5 @@
+name = My Module
+description = Displays t('over 25 active users') if 25 users or more have posted at least one node in the last month. This module was created to demo simpletest as part of the book definitivedrupal.org.
+dependencies[] = blog
+files[] = mymodule.test
+core = 7.x

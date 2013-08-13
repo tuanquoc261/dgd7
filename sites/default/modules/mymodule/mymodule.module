@@ -1,0 +1,47 @@
+<?php
+
+/**
+ * @file
+ * This file defines a block which displays t('Over 25 active users!')
+ * if more than 25 users have created a post in the last 30 days.
+ */
+
+/**
+ * Implements hook_block_info().
+ */
+function mymodule_block_info() {
+  $blocks[0]['info'] = t('Number of users');
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function mymodule_block_view($delta = '') {
+  if($delta == 0 && mymodule_active_users() >= 25) {
+    $block['subject'] = t('Number of users');
+    $block['content'] = t('Over 25 active users !');
+    return $block;
+  }
+}
+
+/**
+ * mymodule_active_users().
+ * Returns the number of active sers, defined as being users who posted a
+ * node in the last 30 days.
+ * @return
+ *  number of active users (see above).
+ */
+function mymodule_active_users() {
+  return db_query('SELECT COUNT(DISTINCT uid) FROM {node} WHERE :time - created < :threshold', array(
+    ':time' => REQUEST_TIME,
+    ':threshold' => variable_get('mymodule_threshold', 60*60*24*30),
+  ))->fetchField()
+    
+  ;
+}
+
+
+
+
+
